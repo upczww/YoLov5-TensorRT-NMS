@@ -484,8 +484,9 @@ void doInference(IExecutionContext &context, ICudaEngine *engine, float *input, 
 #ifdef OUTPUT_YOLO
     CHECK(cudaMemcpyAsync(yolo_boxes, buffers[yolobboxIndex], batchSize * Yolo::MAX_OUTPUT_BBOX_COUNT * 4 * sizeof(float), cudaMemcpyDeviceToHost, stream));
     CHECK(cudaMemcpyAsync(yolo_scores, buffers[yoloscoreIndex], batchSize * Yolo::MAX_OUTPUT_BBOX_COUNT * Yolo::CLASS_NUM * sizeof(float), cudaMemcpyDeviceToHost, stream));
-    cudaStreamSynchronize(stream);
 #endif
+    cudaStreamSynchronize(stream);
+
     // Release stream and buffers
     cudaStreamDestroy(stream);
     CHECK(cudaFree(buffers[inputIndex]));
