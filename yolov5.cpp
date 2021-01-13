@@ -5,8 +5,6 @@
 #include "common.hpp"
 #include "NvInferPlugin.h"
 
-#define OUTPUT_YOLO
-
 #define USE_FP16 // comment out this if want to use FP32
 #define DEVICE 0 // GPU id
 #define NMS_THRESH 0.4
@@ -29,9 +27,6 @@ const char *OUTPUT_COUNTS = "count";
 const char *OUTPUT_BOXES = "box";
 const char *OUTPUT_SCORES = "score";
 const char *OUTPUT_CLASSES = "class";
-
-const char *YOLO_BOXES = "yolo_boxes";
-const char *YOLO_SCORES = "yolo_scores";
 
 static Logger gLogger;
 
@@ -100,13 +95,7 @@ ICudaEngine *createEngine_s(unsigned int maxBatchSize, IBuilder *builder, IBuild
     IConvolutionLayer *det2 = network->addConvolutionNd(*bottleneck_csp23->getOutput(0), 3 * (Yolo::CLASS_NUM + 5), DimsHW{1, 1}, weightMap["model.24.m.2.weight"], weightMap["model.24.m.2.bias"]);
 
     auto yolo = addYoLoLayer(network, weightMap, det0, det1, det2);
-#ifdef OUTPUT_YOLO
-    yolo->getOutput(0)->setName(YOLO_BOXES);
-    network->markOutput(*yolo->getOutput(0));
 
-    yolo->getOutput(1)->setName(YOLO_SCORES);
-    network->markOutput(*yolo->getOutput(1));
-#endif
     auto nms = addBatchedNMSLayer(network, yolo, Yolo::CLASS_NUM, Yolo::MAX_OUTPUT_BBOX_COUNT, KEEP_TOPK, CONF_THRESH, NMS_THRESH);
 
     nms->getOutput(0)->setName(OUTPUT_COUNTS);
@@ -438,19 +427,15 @@ void APIToModel(unsigned int maxBatchSize, IHostMemory **modelStream)
     builder->destroy();
 }
 
-void doInference(IExecutionContext &context, ICudaEngine *engine, float *input, int *counts, float *boxes, float *scores, float *classes, float *yolo_boxes, float *yolo_scores, int batchSize)
+void doInference(IExecutionContext &context, ICudaEngine *engine, float *input, int *counts, float *boxes, float *scores, float *classes, int batchSize)
 {
     // const ICudaEngine &engine = context.getEngine();
     // Create stream
     cudaStream_t stream;
     CHECK(cudaStreamCreate(&stream));
-#ifdef OUTPUT_YOLO
-    assert(engine->getNbBindings() == 7);
-    void *buffers[7];
-#else
+
     assert(engine->getNbBindings() == 5);
     void *buffers[5];
-#endif
     // In order to bind the buffers, we need to know the names of the input and output tensors.
     // Note that indices are guaranteed to be less than IEngine::getNbBindings()
     const int inputIndex = engine->getBindingIndex(INPUT_NAME);
@@ -458,10 +443,7 @@ void doInference(IExecutionContext &context, ICudaEngine *engine, float *input, 
     const int bboxIndex = engine->getBindingIndex(OUTPUT_BOXES);
     const int scoreIndex = engine->getBindingIndex(OUTPUT_SCORES);
     const int classIndex = engine->getBindingIndex(OUTPUT_CLASSES);
-#ifdef OUTPUT_YOLO
-    const int yolobboxIndex = engine->getBindingIndex(YOLO_BOXES);
-    const int yoloscoreIndex = engine->getBindingIndex(YOLO_SCORES);
-#endif
+
     // Create GPU buffers on device
     CHECK(cudaMalloc(&buffers[inputIndex], batchSize * 3 * INPUT_H * INPUT_W * sizeof(float)));
     CHECK(cudaMalloc(&buffers[countIndex], batchSize * sizeof(int)));
@@ -469,10 +451,6 @@ void doInference(IExecutionContext &context, ICudaEngine *engine, float *input, 
     CHECK(cudaMalloc(&buffers[scoreIndex], batchSize * KEEP_TOPK * sizeof(float)));
     CHECK(cudaMalloc(&buffers[classIndex], batchSize * KEEP_TOPK * sizeof(float)));
 
-#ifdef OUTPUT_YOLO
-    CHECK(cudaMalloc(&buffers[yolobboxIndex], batchSize * Yolo::MAX_OUTPUT_BBOX_COUNT * 4 * sizeof(float)));
-    CHECK(cudaMalloc(&buffers[yoloscoreIndex], batchSize * Yolo::MAX_OUTPUT_BBOX_COUNT * Yolo::CLASS_NUM * sizeof(float)));
-#endif
     // DMA input batch data to device, infer on the batch asynchronously, and DMA output back to host
     CHECK(cudaMemcpyAsync(buffers[inputIndex], input, batchSize * 3 * INPUT_H * INPUT_W * sizeof(float), cudaMemcpyHostToDevice, stream));
     context.enqueue(batchSize, buffers, stream, nullptr);
@@ -481,10 +459,6 @@ void doInference(IExecutionContext &context, ICudaEngine *engine, float *input, 
     CHECK(cudaMemcpyAsync(scores, buffers[scoreIndex], batchSize * KEEP_TOPK * sizeof(float), cudaMemcpyDeviceToHost, stream));
     CHECK(cudaMemcpyAsync(classes, buffers[classIndex], batchSize * KEEP_TOPK * sizeof(float), cudaMemcpyDeviceToHost, stream));
 
-#ifdef OUTPUT_YOLO
-    CHECK(cudaMemcpyAsync(yolo_boxes, buffers[yolobboxIndex], batchSize * Yolo::MAX_OUTPUT_BBOX_COUNT * 4 * sizeof(float), cudaMemcpyDeviceToHost, stream));
-    CHECK(cudaMemcpyAsync(yolo_scores, buffers[yoloscoreIndex], batchSize * Yolo::MAX_OUTPUT_BBOX_COUNT * Yolo::CLASS_NUM * sizeof(float), cudaMemcpyDeviceToHost, stream));
-#endif
     cudaStreamSynchronize(stream);
 
     // Release stream and buffers
@@ -494,10 +468,6 @@ void doInference(IExecutionContext &context, ICudaEngine *engine, float *input, 
     CHECK(cudaFree(buffers[bboxIndex]));
     CHECK(cudaFree(buffers[scoreIndex]));
     CHECK(cudaFree(buffers[classIndex]));
-#ifdef OUTPUT_YOLO
-    CHECK(cudaFree(buffers[yolobboxIndex]));
-    CHECK(cudaFree(buffers[yoloscoreIndex]));
-#endif
 }
 
 int main(int argc, char **argv)
@@ -561,9 +531,6 @@ int main(int argc, char **argv)
     static float scores[BATCH_SIZE * KEEP_TOPK];
     static float classes[BATCH_SIZE * KEEP_TOPK];
 
-    static float yolo_boxes[BATCH_SIZE * Yolo::MAX_OUTPUT_BBOX_COUNT * 4];
-    static float yolo_scores[BATCH_SIZE * Yolo::MAX_OUTPUT_BBOX_COUNT * Yolo::CLASS_NUM];
-
     IRuntime *runtime = createInferRuntime(gLogger);
     assert(runtime != nullptr);
     ICudaEngine *engine = runtime->deserializeCudaEngine(trtModelStream, size);
@@ -601,39 +568,9 @@ int main(int argc, char **argv)
 
         // Run inference
         auto start = std::chrono::system_clock::now();
-        doInference(*context, engine, data, counts, boxes, scores, classes, yolo_boxes, yolo_scores, fcount);
+        doInference(*context, engine, data, counts, boxes, scores, classes, fcount);
         auto end = std::chrono::system_clock::now();
         std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-        printf("boxes ");
-        for (int bb = 0; bb < 10; ++bb)
-        {
-            printf("%.2f ", boxes[bb]);
-        }
-        printf("\n");
-        printf("scores ");
-        for (int bb = 0; bb < 10; ++bb)
-        {
-            printf("%.2f ", scores[bb]);
-        }
-        printf("\n");
-        printf("classes ");
-        for (int bb = 0; bb < 10; ++bb)
-        {
-            printf("%.2f ", classes[bb]);
-        }
-        printf("\n");
-        printf("yolo boxes ");
-        for (int bb = 0; bb < 10; ++bb)
-        {
-            printf("%.2f ", yolo_boxes[bb]);
-        }
-        printf("\n");
-        printf("yolo scores ");
-        for (int bb = 0; bb < 10; ++bb)
-        {
-            printf("%.2f ", yolo_scores[bb]);
-        }
-        printf("\n");
         for (int b = 0; b < fcount; b++)
         {
             std::cout << "detect count " << counts[b] << std::endl;
@@ -641,12 +578,11 @@ int main(int argc, char **argv)
             for (int j = 0; j < counts[b]; j++)
             {
                 float *curBbox = boxes + (b * KEEP_TOPK + j) * 4;
-
                 float *curScore = scores + (b * KEEP_TOPK + j);
                 float *curClass = classes + (b * KEEP_TOPK + j);
                 cv::Rect r = get_rect(img, curBbox);
                 cv::rectangle(img, r, cv::Scalar(0x27, 0xC1, 0x36), 2);
-                cv::putText(img, std::to_string(int(*curClass)), cv::Point(r.x, r.y - 1), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0xFF, 0xFF, 0xFF), 2);
+                cv::putText(img, std::to_string(int(*curClass)) + " " + std::to_string(*curScore), cv::Point(r.x, r.y - 1), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0xFF, 0xFF, 0xFF), 2);
             }
             cv::imwrite("_" + file_names[f - fcount + 1 + b], img);
         }

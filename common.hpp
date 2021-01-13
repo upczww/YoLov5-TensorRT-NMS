@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include "NvInfer.h"
 #include "yololayer.h"
+#include "batchedNMSPlugin.h"
 
 #define CHECK(status)                                          \
     do                                                         \
@@ -337,11 +338,14 @@ IPluginV2Layer *addYoLoLayer(INetworkDefinition *network, std::map<std::string, 
     IPluginV2 *pluginObj = creator->createPlugin("yololayer", &pluginData);
     ITensor *inputTensors_yolo[] = {det2->getOutput(0), det1->getOutput(0), det0->getOutput(0)};
     auto yolo = network->addPluginV2(inputTensors_yolo, 3, *pluginObj);
+    yolo->setName("yolo_layer");
     return yolo;
 }
+/*
+// this is ok as well
 IPluginV2Layer *addBatchedNMSLayer(INetworkDefinition *network, IPluginV2Layer *yolo, int num_classes, int top_k, int keep_top_k, float score_thresh, float iou_thresh, bool is_normalized = false, bool clip_boxes = false)
 {
-    auto creator = getPluginRegistry()->getPluginCreator("BatchedNMS_TRT", "1");
+    auto creator = getPluginRegistry()->getPluginCreator("CUSTOMNMS_TRT", "1");
     // Set plugin fields and the field collection
     const bool share_location = true;
     const int background_id = -1;
@@ -368,6 +372,31 @@ IPluginV2Layer *addBatchedNMSLayer(INetworkDefinition *network, IPluginV2Layer *
     };
     PluginFieldCollection pfc{9, fields};
     IPluginV2 *pluginObj = creator->createPlugin("batchednms", &pfc);
+    ITensor *inputTensors[] = {yolo->getOutput(0), yolo->getOutput(1)};
+    auto batchednmslayer = network->addPluginV2(inputTensors, 2, *pluginObj);
+    batchednmslayer->setName("nms_layer");
+    assert(batchednmslayer);
+    return batchednmslayer;
+}
+*/
+
+IPluginV2Layer *addBatchedNMSLayer(INetworkDefinition *network, IPluginV2Layer *yolo, int num_classes, int top_k, int keep_top_k, float score_thresh, float iou_thresh, bool is_normalized = false, bool clip_boxes = false)
+{
+    nvinfer1::plugin::NMSParameters param;
+    // Set plugin fields and the field collection
+    const bool share_location = true;
+    const int background_id = -1;
+    param.backgroundLabelId = background_id;
+    param.iouThreshold = iou_thresh;
+    param.isNormalized = is_normalized;
+    param.keepTopK = keep_top_k;
+    param.numClasses = num_classes;
+    param.scoreThreshold = score_thresh;
+    param.shareLocation = share_location;
+    param.topK = top_k;
+
+    IPluginV2 *pluginObj = createBatchedNMSPlugin(param);
+
     ITensor *inputTensors[] = {yolo->getOutput(0), yolo->getOutput(1)};
     auto batchednmslayer = network->addPluginV2(inputTensors, 2, *pluginObj);
     batchednmslayer->setName("nms_layer");

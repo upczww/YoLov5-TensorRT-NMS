@@ -30,11 +30,4 @@ See the readme in [home page.](https://github.com/wang-xinyu/tensorrtx)
 
 ## Known issues
 
-1. The batchedNMS outputs is wrong when comment these
-```
-    yolo->getOutput(0)->setName(YOLO_BOXES);
-    network->markOutput(*yolo->getOutput(0));
-
-    yolo->getOutput(1)->setName(YOLO_SCORES);
-    network->markOutput(*yolo->getOutput(1));
-```
+1. None
