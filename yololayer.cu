@@ -229,8 +229,8 @@ namespace nvinfer1
         {
             CUDA_CHECK(cudaMemset(countData + idx, 0, sizeof(int)));
         }
-        CUDA_CHECK(cudaMemset(bboxData, 0, sizeof(float) * mMaxOutObject * 4));
-        CUDA_CHECK(cudaMemset(scoreData, 0, sizeof(float) * mMaxOutObject * mClassCount));
+        CUDA_CHECK(cudaMemset(bboxData, 0, sizeof(float) * mMaxOutObject * 4 * batchSize));
+        CUDA_CHECK(cudaMemset(scoreData, 0, sizeof(float) * mMaxOutObject * mClassCount * batchSize));
 
         int numElem = 0;
         for (unsigned int i = 0; i < mYoloKernel.size(); ++i)
