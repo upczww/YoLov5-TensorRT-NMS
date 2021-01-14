@@ -136,8 +136,8 @@ class YoLov5TRT(object):
                 image_raw,
                 label="{}:{:.2f}".format(categories[int(classids[i])], scores[i]),
             )
-        parent, filename = os.path.split(input_image_path)
-        save_name = os.path.join(parent, "output_" + filename)
+        filename = os.path.basename(input_image_path)
+        save_name = "output_" + filename
         # Save image
         cv2.imwrite(save_name, image_raw)
 
