@@ -3,7 +3,6 @@
 #include "cuda_runtime_api.h"
 #include "logging.h"
 #include "common.hpp"
-#include "NvInferPlugin.h"
 
 #define USE_FP16 // comment out this if want to use FP32
 #define DEVICE 0 // GPU id

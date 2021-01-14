@@ -8,8 +8,8 @@
 #include <opencv2/opencv.hpp>
 #include <dirent.h>
 #include "NvInfer.h"
+#include "NvInferPlugin.h"
 #include "yololayer.h"
-#include "batchedNMSPlugin.h"
 
 #define CHECK(status)                                          \
     do                                                         \
