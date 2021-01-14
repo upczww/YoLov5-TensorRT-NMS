@@ -130,7 +130,7 @@ ICudaEngine *createEngine_s(unsigned int maxBatchSize, IBuilder *builder, IBuild
     }
     return engine;
 }
-/*
+
 ICudaEngine *createEngine_m(unsigned int maxBatchSize, IBuilder *builder, IBuilderConfig *config, DataType dt)
 {
     INetworkDefinition *network = builder->createNetworkV2(0U);
@@ -142,7 +142,7 @@ ICudaEngine *createEngine_m(unsigned int maxBatchSize, IBuilder *builder, IBuild
     std::map<std::string, Weights> weightMap = loadWeights("../yolov5m.wts");
     Weights emptywts{DataType::kFLOAT, nullptr, 0};
 
-    // ------ yolov5 backbone------ 
+    // ------ yolov5 backbone------
     auto focus0 = focus(network, weightMap, *data, 3, 48, 3, "model.0");
     auto conv1 = convBlock(network, weightMap, *focus0->getOutput(0), 96, 3, 2, 1, "model.1");
     auto bottleneck_CSP2 = bottleneckCSP(network, weightMap, *conv1->getOutput(0), 96, 96, 2, true, 1, 0.5, "model.2");
@@ -152,7 +152,7 @@ ICudaEngine *createEngine_m(unsigned int maxBatchSize, IBuilder *builder, IBuild
     auto bottleneck_csp6 = bottleneckCSP(network, weightMap, *conv5->getOutput(0), 384, 384, 6, true, 1, 0.5, "model.6");
     auto conv7 = convBlock(network, weightMap, *bottleneck_csp6->getOutput(0), 768, 3, 2, 1, "model.7");
     auto spp8 = SPP(network, weightMap, *conv7->getOutput(0), 768, 768, 5, 9, 13, "model.8");
-    // ------ yolov5 head ------ 
+    // ------ yolov5 head ------
     auto bottleneck_csp9 = bottleneckCSP(network, weightMap, *spp8->getOutput(0), 768, 768, 2, false, 1, 0.5, "model.9");
     auto conv10 = convBlock(network, weightMap, *bottleneck_csp9->getOutput(0), 384, 1, 1, 1, "model.10");
 
@@ -199,8 +199,19 @@ ICudaEngine *createEngine_m(unsigned int maxBatchSize, IBuilder *builder, IBuild
     IConvolutionLayer *det2 = network->addConvolutionNd(*bottleneck_csp23->getOutput(0), 3 * (Yolo::CLASS_NUM + 5), DimsHW{1, 1}, weightMap["model.24.m.2.weight"], weightMap["model.24.m.2.bias"]);
 
     auto yolo = addYoLoLayer(network, weightMap, det0, det1, det2);
-    yolo->getOutput(0)->setName(OUTPUT_BLOB_NAME);
-    network->markOutput(*yolo->getOutput(0));
+    auto nms = addBatchedNMSLayer(network, yolo, Yolo::CLASS_NUM, Yolo::MAX_OUTPUT_BBOX_COUNT, KEEP_TOPK, CONF_THRESH, NMS_THRESH);
+
+    nms->getOutput(0)->setName(OUTPUT_COUNTS);
+    network->markOutput(*nms->getOutput(0));
+
+    nms->getOutput(1)->setName(OUTPUT_BOXES);
+    network->markOutput(*nms->getOutput(1));
+
+    nms->getOutput(2)->setName(OUTPUT_SCORES);
+    network->markOutput(*nms->getOutput(2));
+
+    nms->getOutput(3)->setName(OUTPUT_CLASSES);
+    network->markOutput(*nms->getOutput(3));
 
     // Build engine
     builder->setMaxBatchSize(maxBatchSize);
@@ -235,7 +246,7 @@ ICudaEngine *createEngine_l(unsigned int maxBatchSize, IBuilder *builder, IBuild
     std::map<std::string, Weights> weightMap = loadWeights("../yolov5l.wts");
     Weights emptywts{DataType::kFLOAT, nullptr, 0};
 
-    // ------ yolov5 backbone------ 
+    // ------ yolov5 backbone------
     auto focus0 = focus(network, weightMap, *data, 3, 64, 3, "model.0");
     auto conv1 = convBlock(network, weightMap, *focus0->getOutput(0), 128, 3, 2, 1, "model.1");
     auto bottleneck_CSP2 = bottleneckCSP(network, weightMap, *conv1->getOutput(0), 128, 128, 3, true, 1, 0.5, "model.2");
@@ -246,7 +257,7 @@ ICudaEngine *createEngine_l(unsigned int maxBatchSize, IBuilder *builder, IBuild
     auto conv7 = convBlock(network, weightMap, *bottleneck_csp6->getOutput(0), 1024, 3, 2, 1, "model.7");
     auto spp8 = SPP(network, weightMap, *conv7->getOutput(0), 1024, 1024, 5, 9, 13, "model.8");
 
-    // ------ yolov5 head ------ 
+    // ------ yolov5 head ------
     auto bottleneck_csp9 = bottleneckCSP(network, weightMap, *spp8->getOutput(0), 1024, 1024, 3, false, 1, 0.5, "model.9");
     auto conv10 = convBlock(network, weightMap, *bottleneck_csp9->getOutput(0), 512, 1, 1, 1, "model.10");
 
@@ -290,8 +301,19 @@ ICudaEngine *createEngine_l(unsigned int maxBatchSize, IBuilder *builder, IBuild
     IConvolutionLayer *det2 = network->addConvolutionNd(*bottleneck_csp23->getOutput(0), 3 * (Yolo::CLASS_NUM + 5), DimsHW{1, 1}, weightMap["model.24.m.2.weight"], weightMap["model.24.m.2.bias"]);
 
     auto yolo = addYoLoLayer(network, weightMap, det0, det1, det2);
-    yolo->getOutput(0)->setName(OUTPUT_BLOB_NAME);
-    network->markOutput(*yolo->getOutput(0));
+    auto nms = addBatchedNMSLayer(network, yolo, Yolo::CLASS_NUM, Yolo::MAX_OUTPUT_BBOX_COUNT, KEEP_TOPK, CONF_THRESH, NMS_THRESH);
+
+    nms->getOutput(0)->setName(OUTPUT_COUNTS);
+    network->markOutput(*nms->getOutput(0));
+
+    nms->getOutput(1)->setName(OUTPUT_BOXES);
+    network->markOutput(*nms->getOutput(1));
+
+    nms->getOutput(2)->setName(OUTPUT_SCORES);
+    network->markOutput(*nms->getOutput(2));
+
+    nms->getOutput(3)->setName(OUTPUT_CLASSES);
+    network->markOutput(*nms->getOutput(3));
 
     // Build engine
     builder->setMaxBatchSize(maxBatchSize);
@@ -326,7 +348,7 @@ ICudaEngine *createEngine_x(unsigned int maxBatchSize, IBuilder *builder, IBuild
     std::map<std::string, Weights> weightMap = loadWeights("../yolov5x.wts");
     Weights emptywts{DataType::kFLOAT, nullptr, 0};
 
-    // ------ yolov5 backbone------ 
+    // ------ yolov5 backbone------
     auto focus0 = focus(network, weightMap, *data, 3, 80, 3, "model.0");
     auto conv1 = convBlock(network, weightMap, *focus0->getOutput(0), 160, 3, 2, 1, "model.1");
     auto bottleneck_CSP2 = bottleneckCSP(network, weightMap, *conv1->getOutput(0), 160, 160, 4, true, 1, 0.5, "model.2");
@@ -337,7 +359,7 @@ ICudaEngine *createEngine_x(unsigned int maxBatchSize, IBuilder *builder, IBuild
     auto conv7 = convBlock(network, weightMap, *bottleneck_csp6->getOutput(0), 1280, 3, 2, 1, "model.7");
     auto spp8 = SPP(network, weightMap, *conv7->getOutput(0), 1280, 1280, 5, 9, 13, "model.8");
 
-    // ------- yolov5 head ------- 
+    // ------- yolov5 head -------
     auto bottleneck_csp9 = bottleneckCSP(network, weightMap, *spp8->getOutput(0), 1280, 1280, 4, false, 1, 0.5, "model.9");
     auto conv10 = convBlock(network, weightMap, *bottleneck_csp9->getOutput(0), 640, 1, 1, 1, "model.10");
 
@@ -383,8 +405,19 @@ ICudaEngine *createEngine_x(unsigned int maxBatchSize, IBuilder *builder, IBuild
     IConvolutionLayer *det2 = network->addConvolutionNd(*bottleneck_csp23->getOutput(0), 3 * (Yolo::CLASS_NUM + 5), DimsHW{1, 1}, weightMap["model.24.m.2.weight"], weightMap["model.24.m.2.bias"]);
 
     auto yolo = addYoLoLayer(network, weightMap, det0, det1, det2);
-    yolo->getOutput(0)->setName(OUTPUT_BLOB_NAME);
-    network->markOutput(*yolo->getOutput(0));
+    auto nms = addBatchedNMSLayer(network, yolo, Yolo::CLASS_NUM, Yolo::MAX_OUTPUT_BBOX_COUNT, KEEP_TOPK, CONF_THRESH, NMS_THRESH);
+
+    nms->getOutput(0)->setName(OUTPUT_COUNTS);
+    network->markOutput(*nms->getOutput(0));
+
+    nms->getOutput(1)->setName(OUTPUT_BOXES);
+    network->markOutput(*nms->getOutput(1));
+
+    nms->getOutput(2)->setName(OUTPUT_SCORES);
+    network->markOutput(*nms->getOutput(2));
+
+    nms->getOutput(3)->setName(OUTPUT_CLASSES);
+    network->markOutput(*nms->getOutput(3));
 
     // Build engine
     builder->setMaxBatchSize(maxBatchSize);
@@ -407,7 +440,7 @@ ICudaEngine *createEngine_x(unsigned int maxBatchSize, IBuilder *builder, IBuild
 
     return engine;
 }
-*/
+
 void APIToModel(unsigned int maxBatchSize, IHostMemory **modelStream)
 {
     // Create builder
