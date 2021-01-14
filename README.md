@@ -24,10 +24,14 @@ sudo ./yolov5 -d  ../samples // deserialize plan file and run inference, the ima
 <img src="https://user-images.githubusercontent.com/15235574/78247970-60b27c00-751e-11ea-88df-41473fed4823.jpg">
 </p>
 
+3. run Python example, please install Python tensorrt and Pycuda and then
+```
+python yolov5_trt.py
+```
 ## More Information
 
-See the readme in [home page.](https://github.com/wang-xinyu/tensorrtx)
+See the readme in [tensorrtx home page.](https://github.com/wang-xinyu/tensorrtx)
 
 ## Known issues
 
-1. None
+None!
