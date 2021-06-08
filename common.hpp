@@ -341,15 +341,13 @@ IPluginV2Layer *addYoLoLayer(INetworkDefinition *network, std::map<std::string, 
     yolo->setName("yolo_layer");
     return yolo;
 }
-/*
-// this is ok as well
+
 IPluginV2Layer *addBatchedNMSLayer(INetworkDefinition *network, IPluginV2Layer *yolo, int num_classes, int top_k, int keep_top_k, float score_thresh, float iou_thresh, bool is_normalized = false, bool clip_boxes = false)
 {
-    auto creator = getPluginRegistry()->getPluginCreator("CUSTOMNMS_TRT", "1");
+    auto creator = getPluginRegistry()->getPluginCreator("BatchedNMS_TRT", "1");
     // Set plugin fields and the field collection
     const bool share_location = true;
     const int background_id = -1;
-
     PluginField fields[9] = {
         PluginField{"shareLocation", &share_location,
                     PluginFieldType::kINT32, 1},
@@ -378,8 +376,7 @@ IPluginV2Layer *addBatchedNMSLayer(INetworkDefinition *network, IPluginV2Layer *
     assert(batchednmslayer);
     return batchednmslayer;
 }
-*/
-
+/*
 IPluginV2Layer *addBatchedNMSLayer(INetworkDefinition *network, IPluginV2Layer *yolo, int num_classes, int top_k, int keep_top_k, float score_thresh, float iou_thresh, bool is_normalized = false, bool clip_boxes = false)
 {
     nvinfer1::plugin::NMSParameters param;
@@ -403,5 +400,5 @@ IPluginV2Layer *addBatchedNMSLayer(INetworkDefinition *network, IPluginV2Layer *
     assert(batchednmslayer);
     return batchednmslayer;
 }
-
+*/
 #endif
