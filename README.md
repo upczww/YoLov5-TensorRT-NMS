@@ -1,6 +1,21 @@
 # yolov5-5.0
 Original codes from [tensorrtx](https://github.com/wang-xinyu/tensorrtx). I modified the yololayer and integrated batchedNMSPlugin. A `yolov5s.wts` is provided for fast demo. How to generate `.wts` can refer to https://github.com/wang-xinyu/tensorrtx/tree/master/yolov5.
 
+## Run with docker
+
+1. Run into docker, assume repo path is  `/data/YoLov5-TensorRT-NMS`
+```
+sudo docker run --gpus all -v /data/YoLov5-TensorRT-NMS:/work -it registry.cn-guangzhou.aliyuncs.com/nvidia-images/tensorrt20.03-py3:v3 /bin/bash
+cd work
+mkdir build
+cd build
+cmake ..
+make
+sudo ./yolov5 -s             // serialize model to plan file i.e. 'yolov5s.engine'
+sudo ./yolov5 -d  ../samples // deserialize plan file and run inference, the images in samples will be processed.
+```
+
+
 
 ## How to Run, yolov5s as example
 
