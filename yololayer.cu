@@ -1,6 +1,25 @@
 #include <assert.h>
+#include <vector>
+#include <iostream>
 #include "yololayer.h"
-#include "utils.h"
+#include "cuda_utils.h"
+
+namespace Tn
+{
+    template<typename T> 
+    void write(char*& buffer, const T& val)
+    {
+        *reinterpret_cast<T*>(buffer) = val;
+        buffer += sizeof(T);
+    }
+
+    template<typename T> 
+    void read(const char*& buffer, T& val)
+    {
+        val = *reinterpret_cast<const T*>(buffer);
+        buffer += sizeof(T);
+    }
+}
 
 using namespace Yolo;
 
@@ -15,12 +34,12 @@ namespace nvinfer1
         mYoloKernel = vYoloKernel;
         mKernelCount = vYoloKernel.size();
 
-        CUDA_CHECK(cudaMallocHost(&mAnchor, mKernelCount * sizeof(void *)));
-        size_t AnchorLen = sizeof(float) * CHECK_COUNT * 2;
+        CUDA_CHECK(cudaMallocHost(&mAnchor, mKernelCount * sizeof(void*)));
+        size_t AnchorLen = sizeof(float)* CHECK_COUNT * 2;
         for (int ii = 0; ii < mKernelCount; ii++)
         {
             CUDA_CHECK(cudaMalloc(&mAnchor[ii], AnchorLen));
-            const auto &yolo = mYoloKernel[ii];
+            const auto& yolo = mYoloKernel[ii];
             CUDA_CHECK(cudaMemcpy(mAnchor[ii], yolo.anchors, AnchorLen, cudaMemcpyHostToDevice));
         }
     }
@@ -34,7 +53,7 @@ namespace nvinfer1
     }
 
     // create the plugin at runtime from a byte stream
-    YoloLayerPlugin::YoloLayerPlugin(const void *data, size_t length)
+    YoloLayerPlugin::YoloLayerPlugin(const void* data, size_t length)
     {
         using namespace Tn;
         const char *d = reinterpret_cast<const char *>(data), *a = d;
@@ -48,21 +67,21 @@ namespace nvinfer1
         auto kernelSize = mKernelCount * sizeof(YoloKernel);
         memcpy(mYoloKernel.data(), d, kernelSize);
         d += kernelSize;
-        CUDA_CHECK(cudaMallocHost(&mAnchor, mKernelCount * sizeof(void *)));
-        size_t AnchorLen = sizeof(float) * CHECK_COUNT * 2;
+        CUDA_CHECK(cudaMallocHost(&mAnchor, mKernelCount * sizeof(void*)));
+        size_t AnchorLen = sizeof(float)* CHECK_COUNT * 2;
         for (int ii = 0; ii < mKernelCount; ii++)
         {
             CUDA_CHECK(cudaMalloc(&mAnchor[ii], AnchorLen));
-            const auto &yolo = mYoloKernel[ii];
+            const auto& yolo = mYoloKernel[ii];
             CUDA_CHECK(cudaMemcpy(mAnchor[ii], yolo.anchors, AnchorLen, cudaMemcpyHostToDevice));
         }
         assert(d == a + length);
     }
 
-    void YoloLayerPlugin::serialize(void *buffer) const
+    void YoloLayerPlugin::serialize(void* buffer) const TRT_NOEXCEPT
     {
         using namespace Tn;
-        char *d = static_cast<char *>(buffer), *a = d;
+        char* d = static_cast<char*>(buffer), *a = d;
         write(d, mClassCount);
         write(d, mThreadCount);
         write(d, mKernelCount);
@@ -76,17 +95,17 @@ namespace nvinfer1
         assert(d == a + getSerializationSize());
     }
 
-    size_t YoloLayerPlugin::getSerializationSize() const
+    size_t YoloLayerPlugin::getSerializationSize() const TRT_NOEXCEPT
     {
         return sizeof(mClassCount) + sizeof(mThreadCount) + sizeof(mKernelCount) + sizeof(Yolo::YoloKernel) * mYoloKernel.size() + sizeof(mYoloV5NetWidth) + sizeof(mYoloV5NetHeight) + sizeof(mMaxOutObject);
     }
 
-    int YoloLayerPlugin::initialize()
+    int YoloLayerPlugin::initialize() TRT_NOEXCEPT
     {
         return 0;
     }
 
-    Dims YoloLayerPlugin::getOutputDimensions(int index, const Dims *inputs, int nbInputDims)
+    Dims YoloLayerPlugin::getOutputDimensions(int index, const Dims* inputs, int nbInputDims) TRT_NOEXCEPT
     {   assert(index < 2);
         //output the result to channel
         if (index == 0)
@@ -97,65 +116,65 @@ namespace nvinfer1
     }
 
     // Set plugin namespace
-    void YoloLayerPlugin::setPluginNamespace(const char *pluginNamespace)
+    void YoloLayerPlugin::setPluginNamespace(const char* pluginNamespace) TRT_NOEXCEPT
     {
         mPluginNamespace = pluginNamespace;
     }
 
-    const char *YoloLayerPlugin::getPluginNamespace() const
+    const char* YoloLayerPlugin::getPluginNamespace() const TRT_NOEXCEPT
     {
         return mPluginNamespace;
     }
 
     // Return the DataType of the plugin output at the requested index
-    DataType YoloLayerPlugin::getOutputDataType(int index, const nvinfer1::DataType *inputTypes, int nbInputs) const
+    DataType YoloLayerPlugin::getOutputDataType(int index, const nvinfer1::DataType* inputTypes, int nbInputs) const TRT_NOEXCEPT
     {
         return DataType::kFLOAT;
     }
 
     // Return true if output tensor is broadcast across a batch.
-    bool YoloLayerPlugin::isOutputBroadcastAcrossBatch(int outputIndex, const bool *inputIsBroadcasted, int nbInputs) const
+    bool YoloLayerPlugin::isOutputBroadcastAcrossBatch(int outputIndex, const bool* inputIsBroadcasted, int nbInputs) const TRT_NOEXCEPT
     {
         return false;
     }
 
     // Return true if plugin can use input that is broadcast across batch without replication.
-    bool YoloLayerPlugin::canBroadcastInputAcrossBatch(int inputIndex) const
+    bool YoloLayerPlugin::canBroadcastInputAcrossBatch(int inputIndex) const TRT_NOEXCEPT
     {
         return false;
     }
 
-    void YoloLayerPlugin::configurePlugin(const PluginTensorDesc *in, int nbInput, const PluginTensorDesc *out, int nbOutput)
+    void YoloLayerPlugin::configurePlugin(const PluginTensorDesc* in, int nbInput, const PluginTensorDesc* out, int nbOutput) TRT_NOEXCEPT
     {
     }
 
     // Attach the plugin object to an execution context and grant the plugin the access to some context resource.
-    void YoloLayerPlugin::attachToContext(cudnnContext *cudnnContext, cublasContext *cublasContext, IGpuAllocator *gpuAllocator)
+    void YoloLayerPlugin::attachToContext(cudnnContext* cudnnContext, cublasContext* cublasContext, IGpuAllocator* gpuAllocator) TRT_NOEXCEPT
     {
     }
 
     // Detach the plugin object from its execution context.
-    void YoloLayerPlugin::detachFromContext() {}
+    void YoloLayerPlugin::detachFromContext() TRT_NOEXCEPT {}
 
-    const char *YoloLayerPlugin::getPluginType() const
+    const char* YoloLayerPlugin::getPluginType() const TRT_NOEXCEPT
     {
         return "YoloLayer_TRT";
     }
 
-    const char *YoloLayerPlugin::getPluginVersion() const
+    const char* YoloLayerPlugin::getPluginVersion() const TRT_NOEXCEPT
     {
         return "1";
     }
 
-    void YoloLayerPlugin::destroy()
+    void YoloLayerPlugin::destroy() TRT_NOEXCEPT
     {
         delete this;
     }
 
     // Clone the plugin
-    IPluginV2IOExt *YoloLayerPlugin::clone() const
+    IPluginV2IOExt* YoloLayerPlugin::clone() const TRT_NOEXCEPT
     {
-        YoloLayerPlugin *p = new YoloLayerPlugin(mClassCount, mYoloV5NetWidth, mYoloV5NetHeight, mMaxOutObject, mYoloKernel);
+        YoloLayerPlugin* p = new YoloLayerPlugin(mClassCount, mYoloV5NetWidth, mYoloV5NetHeight, mMaxOutObject, mYoloKernel);
         p->setPluginNamespace(mPluginNamespace);
         return p;
     }
@@ -163,27 +182,24 @@ namespace nvinfer1
     __device__ float Logist(float data) { return 1.0f / (1.0f + expf(-data)); };
 
     __global__ void CalDetection(const float *input, float *bboxData, float *scoreData, int *countData, int noElements,
-                                 const int netwidth, const int netheight, int maxoutobject, int yoloWidth, int yoloHeight, const float anchors[CHECK_COUNT * 2], int classes)
+        const int netwidth, const int netheight, int maxoutobject, int yoloWidth, int yoloHeight, const float anchors[CHECK_COUNT * 2], int classes)
     {
+
         int idx = threadIdx.x + blockDim.x * blockIdx.x;
-        if (idx >= noElements)
-            return;
+        if (idx >= noElements) return;
 
         int total_grid = yoloWidth * yoloHeight;
         int bnIdx = idx / total_grid;
         idx = idx - total_grid * bnIdx;
         int info_len_i = 5 + classes;                                                    // 85
-        const float *curInput = input + bnIdx * (info_len_i * total_grid * CHECK_COUNT); // b*h*w*3*85
+        const float* curInput = input + bnIdx * (info_len_i * total_grid * CHECK_COUNT); // b*h*w*3*85
 
-        for (int k = 0; k < 3; ++k)
-        {
+        for (int k = 0; k < CHECK_COUNT; ++k) {
             float box_prob = Logist(curInput[idx + k * info_len_i * total_grid + 4 * total_grid]);
-            if (box_prob < IGNORE_THRESH)
-                continue;
+            if (box_prob < IGNORE_THRESH) continue;
             int *res_count = countData + bnIdx;
             int count = (int)atomicAdd(res_count, 1);
-            if (count >= maxoutobject)
-                return;
+            if (count >= maxoutobject) return;
 
             float *curBbox = bboxData + bnIdx * maxoutobject * 4 + count * 4;
             float *curScore = scoreData + bnIdx * maxoutobject * classes + count * classes;
@@ -219,33 +235,31 @@ namespace nvinfer1
         }
     }
 
-    void YoloLayerPlugin::forwardGpu(const float *const *inputs, void **outputs, void *workspace, cudaStream_t stream, int batchSize)
+    void YoloLayerPlugin::forwardGpu(const float* const* inputs, void** outputs, void* workspace, cudaStream_t stream, int batchSize)
     {
         float *bboxData = (float *)outputs[0];
         float *scoreData = (float *)outputs[1];
         int *countData = (int *)workspace;
 
-        for (int idx = 0; idx < batchSize; ++idx)
-        {
-            CUDA_CHECK(cudaMemset(countData + idx, 0, sizeof(int)));
-        }
+
+        CUDA_CHECK(cudaMemset(countData, 0, sizeof(int) * batchSize));
         CUDA_CHECK(cudaMemset(bboxData, 0, sizeof(float) * mMaxOutObject * 4 * batchSize));
         CUDA_CHECK(cudaMemset(scoreData, 0, sizeof(float) * mMaxOutObject * mClassCount * batchSize));
 
         int numElem = 0;
-        for (unsigned int i = 0; i < mYoloKernel.size(); ++i)
-        {
-            const auto &yolo = mYoloKernel[i];
+        for (unsigned int i = 0; i < mYoloKernel.size(); ++i){
+            const auto& yolo = mYoloKernel[i];
             numElem = yolo.width * yolo.height * batchSize;
-            if (numElem < mThreadCount)
-                mThreadCount = numElem;
-            CalDetection<<<(yolo.width * yolo.height * batchSize + mThreadCount - 1) / mThreadCount, mThreadCount>>>(inputs[i], bboxData, scoreData, countData, numElem, mYoloV5NetWidth, mYoloV5NetHeight, mMaxOutObject, yolo.width, yolo.height, (float *)mAnchor[i], mClassCount);
+            if (numElem < mThreadCount) mThreadCount = numElem;
+            CalDetection<<< (numElem + mThreadCount - 1) / mThreadCount, mThreadCount>>>
+                (inputs[i], bboxData, scoreData, countData, numElem, mYoloV5NetWidth, mYoloV5NetHeight, mMaxOutObject, yolo.width, yolo.height, (float*)mAnchor[i], mClassCount);
         }
     }
 
-    int YoloLayerPlugin::enqueue(int batchSize, const void *const *inputs, void **outputs, void *workspace, cudaStream_t stream)
+
+    int YoloLayerPlugin::enqueue(int batchSize, const void *const *inputs, void ** outputs, void* workspace, cudaStream_t stream) TRT_NOEXCEPT
     {
-        forwardGpu((const float *const *)inputs, outputs, workspace, stream, batchSize);
+        forwardGpu((const float* const*)inputs, outputs, workspace, stream, batchSize);
         return 0;
     }
 
@@ -260,66 +274,45 @@ namespace nvinfer1
         mFC.fields = mPluginAttributes.data();
     }
 
-    const char *YoloPluginCreator::getPluginName() const
+    const char* YoloPluginCreator::getPluginName() const TRT_NOEXCEPT
     {
         return "YoloLayer_TRT";
     }
 
-    const char *YoloPluginCreator::getPluginVersion() const
+    const char* YoloPluginCreator::getPluginVersion() const TRT_NOEXCEPT
     {
         return "1";
     }
 
-    const PluginFieldCollection *YoloPluginCreator::getFieldNames()
+    const PluginFieldCollection* YoloPluginCreator::getFieldNames() TRT_NOEXCEPT
     {
         return &mFC;
     }
 
-    IPluginV2IOExt *YoloPluginCreator::createPlugin(const char *name, const PluginFieldCollection *fc)
+    IPluginV2IOExt* YoloPluginCreator::createPlugin(const char* name, const PluginFieldCollection* fc) TRT_NOEXCEPT
     {
-        int class_count = 80;
-        int input_w = 416;
-        int input_h = 416;
-        int max_output_object_count = 1000;
-        std::vector<Yolo::YoloKernel> yolo_kernels(3);
-
-        const PluginField *fields = fc->fields;
-        for (int i = 0; i < fc->nbFields; i++)
-        {
-            if (strcmp(fields[i].name, "netdata") == 0)
-            {
-                assert(fields[i].type == PluginFieldType::kFLOAT32);
-                int *tmp = (int *)(fields[i].data);
-                class_count = tmp[0];
-                input_w = tmp[1];
-                input_h = tmp[2];
-                max_output_object_count = tmp[3];
-            }
-            else if (strstr(fields[i].name, "yolodata") != NULL)
-            {
-                assert(fields[i].type == PluginFieldType::kFLOAT32);
-                int *tmp = (int *)(fields[i].data);
-                YoloKernel kernel;
-                kernel.width = tmp[0];
-                kernel.height = tmp[1];
-                for (int j = 0; j < fields[i].length - 2; j++)
-                {
-                    kernel.anchors[j] = tmp[j + 2];
-                }
-                yolo_kernels[2 - (fields[i].name[8] - '1')] = kernel;
-            }
-        }
-        YoloLayerPlugin *obj = new YoloLayerPlugin(class_count, input_w, input_h, max_output_object_count, yolo_kernels);
+        assert(fc->nbFields == 2);
+        assert(strcmp(fc->fields[0].name, "netinfo") == 0);
+        assert(strcmp(fc->fields[1].name, "kernels") == 0);
+        int *p_netinfo = (int*)(fc->fields[0].data);
+        int class_count = p_netinfo[0];
+        int input_w = p_netinfo[1];
+        int input_h = p_netinfo[2];
+        int max_output_object_count = p_netinfo[3];
+        std::vector<Yolo::YoloKernel> kernels(fc->fields[1].length);
+        memcpy(&kernels[0], fc->fields[1].data, kernels.size() * sizeof(Yolo::YoloKernel));
+        YoloLayerPlugin* obj = new YoloLayerPlugin(class_count, input_w, input_h, max_output_object_count, kernels);
         obj->setPluginNamespace(mNamespace.c_str());
         return obj;
     }
 
-    IPluginV2IOExt *YoloPluginCreator::deserializePlugin(const char *name, const void *serialData, size_t serialLength)
+    IPluginV2IOExt* YoloPluginCreator::deserializePlugin(const char* name, const void* serialData, size_t serialLength) TRT_NOEXCEPT
     {
         // This object will be deleted when the network is destroyed, which will
         // call YoloLayerPlugin::destroy()
-        YoloLayerPlugin *obj = new YoloLayerPlugin(serialData, serialLength);
+        YoloLayerPlugin* obj = new YoloLayerPlugin(serialData, serialLength);
         obj->setPluginNamespace(mNamespace.c_str());
         return obj;
     }
-} // namespace nvinfer1
+}
+
